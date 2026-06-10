@@ -3,137 +3,121 @@ import type { AnalysisResult } from '../types'
 
 interface Props {
   analysis: AnalysisResult
-  isLoading: boolean
+  isLoading?: boolean
   compact?: boolean
 }
 
 const SENTIMENT_COLOR = {
-  bullish: '#00D4FF',
-  bearish: '#FF4D6D',
-  neutral: '#8B9EC7',
+  bullish: 'var(--cyan)',
+  bearish: '#ff4d6d',
+  neutral: 'var(--label)',
 }
 
-const REC_LABEL = {
-  long: '▲ LONG',
-  short: '▼ SHORT',
-  wait: '◈ WAIT',
-}
+const REC_LABEL = { long: 'long', short: 'short', wait: 'wait' }
+const REC_COLOR = { long: 'var(--cyan)', short: '#ff4d6d', wait: 'var(--label)' }
 
-const RISK_COLOR = {
-  low: '#00D4FF',
-  medium: '#F59E0B',
-  high: '#FF4D6D',
-}
-
-export function FundingCard({ analysis, isLoading, compact = false }: Props) {
+export function FundingCard({ analysis, compact = false }: Props) {
   const color = SENTIMENT_COLOR[analysis.sentiment]
   const rateSign = analysis.fundingRate >= 0 ? '+' : ''
-  const annualizedRate = (analysis.fundingRate * 3 * 365 * 100).toFixed(2)
+  const annualized = (analysis.fundingRate * 3 * 365 * 100).toFixed(1)
 
   if (compact) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.25 }}
-        style={{ borderColor: `${color}50` }}
-        className="border rounded-lg p-3 bg-[#0d1117]"
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="rounded border px-4 py-3"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-white font-mono text-sm font-bold">{analysis.coin}</span>
-          <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color, background: `${color}15` }}>
-            {analysis.sentiment.toUpperCase()}
+        <div className="flex items-baseline justify-between mb-1">
+          <span className="text-xs" style={{ color: 'var(--label)' }}>{analysis.coin}</span>
+          <span className="text-xs" style={{ color }}>
+            {analysis.sentiment}
           </span>
         </div>
-        <p className="font-mono text-lg font-bold mb-1" style={{ color }}>
-          {rateSign}{(analysis.fundingRate * 100).toFixed(4)}%
-          <span className="text-[#8B9EC7] text-xs ml-1">/8h</span>
-        </p>
+        <div className="flex items-baseline gap-2 mb-2">
+          <span className="text-lg font-bold tabular-nums" style={{ color }}>
+            {rateSign}{(analysis.fundingRate * 100).toFixed(4)}%
+          </span>
+          <span style={{ color: 'var(--label)', fontSize: '11px' }}>/8h · {annualized}% ann</span>
+        </div>
+
+        {/* Confidence bar */}
         <div className="flex items-center gap-2">
-          <div className="flex-1 bg-[#161b22] rounded-full h-1 overflow-hidden">
+          <div className="flex-1 h-px overflow-hidden" style={{ background: 'var(--border)' }}>
             <motion.div
-              className="h-full rounded-full"
+              className="h-full"
               style={{ background: color }}
               initial={{ width: 0 }}
               animate={{ width: `${analysis.confidence * 100}%` }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
+              transition={{ duration: 0.5 }}
             />
           </div>
-          <span className="text-[#8B9EC7] text-[10px] font-mono">{REC_LABEL[analysis.recommendation]}</span>
+          <span style={{ color: 'var(--label)', fontSize: '10px' }}>
+            {REC_LABEL[analysis.recommendation]}
+          </span>
         </div>
       </motion.div>
     )
   }
 
+  // Full card
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: 'easeOut' }}
-      style={{ borderColor: color }}
-      className="relative border rounded-lg p-6 bg-[#0d1117] overflow-hidden"
+      transition={{ duration: 0.3 }}
+      className="rounded border p-5"
+      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
     >
-      {isLoading && (
-        <motion.div
-          className="absolute inset-x-0 top-0 h-[2px]"
-          style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }}
-          animate={{ x: ['-100%', '100%'] }}
-          transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
-        />
-      )}
-
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between mb-3">
         <div>
-          <p className="text-[#8B9EC7] text-xs font-mono tracking-widest uppercase">{analysis.coin} / USDC Perp</p>
-          <p className="text-white text-3xl font-bold font-mono mt-1">
-            {rateSign}{(analysis.fundingRate * 100).toFixed(4)}%
-            <span className="text-sm text-[#8B9EC7] ml-2">/ 8h</span>
-          </p>
-          <p className="text-[#8B9EC7] text-xs font-mono mt-1">{annualizedRate}% annualized</p>
+          <p style={{ color: 'var(--label)', fontSize: '11px' }}>{analysis.coin} / USDC perp</p>
+          <div className="flex items-baseline gap-2 mt-0.5">
+            <span className="text-2xl font-bold tabular-nums" style={{ color }}>
+              {rateSign}{(analysis.fundingRate * 100).toFixed(4)}%
+            </span>
+            <span style={{ color: 'var(--label)', fontSize: '11px' }}>/8h</span>
+          </div>
+          <p style={{ color: 'var(--label)', fontSize: '11px' }}>{annualized}% annualized</p>
         </div>
-        <motion.div
-          key={analysis.sentiment}
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="text-xs font-mono px-3 py-1 rounded border"
-          style={{ color, borderColor: color, background: `${color}15` }}
-        >
-          {analysis.sentiment.toUpperCase()}
-        </motion.div>
+
+        <div className="text-right">
+          <p className="text-xs mb-1" style={{ color }}>
+            {analysis.sentiment}
+          </p>
+          <p className="text-xs" style={{ color: REC_COLOR[analysis.recommendation] }}>
+            {REC_LABEL[analysis.recommendation]}
+          </p>
+        </div>
       </div>
 
-      <p className="text-[#C8D6EF] text-sm font-sans mb-4 leading-relaxed">{analysis.summary}</p>
+      <p className="text-xs mb-3 leading-relaxed" style={{ color: 'var(--body)' }}>
+        {analysis.summary}
+      </p>
 
-      <div className="flex items-center gap-4 mb-3">
-        <div className="flex-1 bg-[#161b22] rounded-full h-1.5 overflow-hidden">
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px" style={{ background: 'var(--border)' }}>
           <motion.div
-            className="h-full rounded-full"
+            className="h-full"
             style={{ background: color }}
             initial={{ width: 0 }}
             animate={{ width: `${analysis.confidence * 100}%` }}
-            transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
           />
         </div>
-        <span className="text-[#8B9EC7] text-xs font-mono flex-shrink-0">
+        <span style={{ color: 'var(--label)', fontSize: '10px', flexShrink: 0 }}>
           {(analysis.confidence * 100).toFixed(0)}% conf
         </span>
-      </div>
-
-      <div className="flex items-center gap-2">
         <span
-          className="text-xs font-mono px-2 py-1 rounded border"
-          style={{ color, borderColor: `${color}60`, background: `${color}15` }}
+          className="text-xs px-1.5 py-0.5 rounded-sm"
+          style={{
+            color: analysis.riskLevel === 'high' ? '#ff4d6d' : analysis.riskLevel === 'medium' ? '#f59e0b' : 'var(--label)',
+            border: '1px solid var(--border)',
+          }}
         >
-          {REC_LABEL[analysis.recommendation]}
-        </span>
-        <span
-          className="text-xs font-mono px-2 py-1 rounded"
-          style={{ color: RISK_COLOR[analysis.riskLevel], background: `${RISK_COLOR[analysis.riskLevel]}15` }}
-        >
-          {analysis.riskLevel.toUpperCase()} RISK
-        </span>
-        <span className="text-[#8B9EC7] text-xs font-mono ml-auto">
-          {new Date(analysis.timestamp).toLocaleTimeString()}
+          {analysis.riskLevel}
         </span>
       </div>
     </motion.div>

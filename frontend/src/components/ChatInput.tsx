@@ -6,99 +6,77 @@ interface Props {
   isLoading: boolean
 }
 
-const SUGGESTIONS = [
+const PLACEHOLDERS = [
   'show me HYPE funding rate',
   'compare BTC vs ETH funding',
   'which perp has the highest funding?',
-  'is SOL funding bullish or bearish?',
-  'top 3 coins with extreme funding rates',
+  'is SOL overextended long?',
+  'top coins with extreme funding',
 ]
 
 export function ChatInput({ onSubmit, isLoading }: Props) {
   const [value, setValue] = useState('')
-  const [suggestionIdx, setSuggestionIdx] = useState(0)
+  const [phIdx, setPhIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Rotate placeholder suggestions
   useEffect(() => {
-    const id = setInterval(() => setSuggestionIdx((i) => (i + 1) % SUGGESTIONS.length), 3500)
+    const id = setInterval(() => setPhIdx((i) => (i + 1) % PLACEHOLDERS.length), 4000)
     return () => clearInterval(id)
   }, [])
 
-  const handleSubmit = () => {
+  const submit = () => {
     const q = value.trim()
     if (!q || isLoading) return
     onSubmit(q)
     setValue('')
   }
 
-  const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSubmit()
-  }
-
   return (
-    <div className="relative">
-      {/* Terminal prompt line */}
+    <div className="border-t pt-3" style={{ borderColor: 'var(--border)' }}>
       <div
-        className="flex items-center gap-3 rounded-lg border px-4 py-3 transition-all duration-200"
+        className="flex items-center gap-3 rounded border px-4 py-2.5 transition-colors"
         style={{
-          borderColor: isLoading ? '#00D4FF60' : value ? '#00D4FF' : '#1e2736',
-          background: '#0d1117',
-          boxShadow: value && !isLoading ? '0 0 20px #00D4FF10' : 'none',
+          borderColor: value ? '#00D4FF40' : 'var(--border)',
+          background: 'var(--surface)',
         }}
       >
-        {/* Prompt symbol */}
-        <span className="font-mono text-sm flex-shrink-0" style={{ color: '#00D4FF' }}>
-          {isLoading ? (
-            <motion.span
-              animate={{ opacity: [1, 0.2, 1] }}
-              transition={{ duration: 0.6, repeat: Infinity }}
-            >
-              ◈
-            </motion.span>
-          ) : (
-            '▸'
-          )}
-        </span>
+        {/* Cursor */}
+        <motion.span
+          className="flex-shrink-0 text-sm"
+          style={{ color: isLoading ? '#f59e0b' : 'var(--cyan)' }}
+          animate={isLoading ? { opacity: [1, 0.2, 1] } : { opacity: 1 }}
+          transition={{ duration: 0.7, repeat: isLoading ? Infinity : 0 }}
+        >
+          {isLoading ? '…' : '>'}
+        </motion.span>
 
         <input
           ref={inputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKey}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
           disabled={isLoading}
-          placeholder={SUGGESTIONS[suggestionIdx]}
-          className="flex-1 bg-transparent outline-none font-mono text-sm text-white placeholder-[#2d3a4a] disabled:opacity-50"
+          placeholder={PLACEHOLDERS[phIdx]}
+          className="flex-1 bg-transparent outline-none text-sm disabled:opacity-40"
+          style={{ color: 'var(--text)', caretColor: 'var(--cyan)' }}
           autoFocus
         />
 
-        {/* Token hint */}
-        {value.length > 0 && (
-          <span className="text-[#8B9EC7] text-[10px] font-mono flex-shrink-0">
-            {value.length} chars
-          </span>
-        )}
-
-        {/* Send button */}
-        <motion.button
-          onClick={handleSubmit}
+        <button
+          onClick={submit}
           disabled={!value.trim() || isLoading}
-          whileHover={value.trim() && !isLoading ? { scale: 1.05 } : undefined}
-          whileTap={value.trim() && !isLoading ? { scale: 0.95 } : undefined}
-          className="flex-shrink-0 px-3 py-1 rounded font-mono text-xs font-semibold transition-all disabled:opacity-30"
+          className="flex-shrink-0 text-xs px-3 py-1 rounded-sm transition-all disabled:opacity-30"
           style={{
-            background: value.trim() && !isLoading ? '#00D4FF' : 'transparent',
-            color: value.trim() && !isLoading ? '#080c10' : '#00D4FF',
-            border: '1px solid #00D4FF',
+            background: value.trim() && !isLoading ? 'var(--cyan)' : 'transparent',
+            color: value.trim() && !isLoading ? '#080c10' : 'var(--label)',
+            border: '1px solid var(--border)',
           }}
         >
-          {isLoading ? '…' : 'SEND'}
-        </motion.button>
+          run
+        </button>
       </div>
-
-      {/* Hint row */}
-      <p className="text-[#2d3a4a] text-[10px] font-mono mt-1.5 ml-1">
-        Ask about any Hyperliquid perp · Press Enter to send
+      <p className="text-xs mt-1.5 px-1" style={{ color: 'var(--muted)' }}>
+        Enter to send · asks about any Hyperliquid perpetual
       </p>
     </div>
   )
