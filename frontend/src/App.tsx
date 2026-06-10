@@ -12,9 +12,10 @@ import type { QueryResponse, FundingRate, ToolStep } from './types'
 // ── Model options ────────────────────────────────────────────────────────────
 
 const MODELS = [
-  { id: 'anthropic/claude-3-5-haiku', label: 'haiku', description: 'fast' },
-  { id: 'anthropic/claude-3-5-sonnet', label: 'sonnet', description: 'smart' },
-  { id: 'anthropic/claude-3-opus', label: 'opus', description: 'powerful' },
+  { id: 'google/gemma-4-31b-it:free', label: 'gemma', description: 'free' },
+  { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'llama', description: 'free' },
+  { id: 'anthropic/claude-haiku-4.5', label: 'haiku', description: 'fast' },
+  { id: 'anthropic/claude-sonnet-4.6', label: 'sonnet', description: 'smart' },
 ] as const
 
 type ModelId = typeof MODELS[number]['id']
@@ -24,7 +25,7 @@ function getStoredModel(): ModelId {
     const v = localStorage.getItem('hype_monitor_model')
     if (v && MODELS.some((m) => m.id === v)) return v as ModelId
   } catch { /* ignore */ }
-  return 'anthropic/claude-3-5-haiku'
+  return 'google/gemma-4-31b-it:free'
 }
 
 // ── Streaming state ──────────────────────────────────────────────────────────

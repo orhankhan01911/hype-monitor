@@ -18,11 +18,12 @@ import {
 } from './langfuse'
 import { TraceLogSchema, QueryResponse } from './schemas'
 
-const DEFAULT_MODEL = 'anthropic/claude-3-5-haiku'
+const DEFAULT_MODEL = 'google/gemma-4-31b-it:free'
 const ALLOWED_MODELS = new Set([
-  'anthropic/claude-3-5-haiku',
-  'anthropic/claude-3-5-sonnet',
-  'anthropic/claude-3-opus',
+  'google/gemma-4-31b-it:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'anthropic/claude-haiku-4.5',
+  'anthropic/claude-sonnet-4.6',
 ])
 const MAX_STEPS = 5
 
@@ -122,6 +123,7 @@ export async function runFundingAnalysis(
     prompt: userQuery,
     tools,
     maxSteps: MAX_STEPS,
+    maxTokens: 1024,
     experimental_telemetry: telemetrySettings('runFundingAnalysis'),
     onFinish: async ({ text, usage }) => {
       const latencyMs = Date.now() - start
@@ -177,6 +179,7 @@ export async function runFundingAnalysisSync(
     prompt: userQuery,
     tools,
     maxSteps: MAX_STEPS,
+    maxTokens: 1024,
     experimental_telemetry: telemetrySettings('runFundingAnalysisSync'),
   })
 
