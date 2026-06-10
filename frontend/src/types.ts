@@ -32,3 +32,19 @@ export interface QueryResponse {
   analyses: AnalysisResult[]
   trace: TraceLog
 }
+
+export interface ToolStep {
+  tool: string
+  status: 'calling' | 'done'
+  summary: string
+}
+
+export interface PairSpread {
+  coinA: string
+  coinB: string
+  rateA: number
+  rateB: number
+  spreadBps: number
+  netCarryAnnualized: number
+  favoredSide: 'long_a_short_b' | 'long_b_short_a' | 'neutral'
+}

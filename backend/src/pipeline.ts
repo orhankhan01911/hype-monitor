@@ -1,130 +1,214 @@
 import 'dotenv/config'
-import { generateObject } from 'ai'
+import { generateText, streamText, tool } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
-import { fetchTopFundingRates } from './hyperliquid'
-import { createAnalysisTrace } from './langfuse'
-import { AnalysisResultSchema, TraceLogSchema, QueryResponse } from './schemas'
+import {
+  fetchFundingRate,
+  fetchTopFundingRates,
+  fetchFundingHistory,
+  fetchPairSpread,
+  fetchPredictedFundings,
+} from './hyperliquid'
+import {
+  createSessionTrace,
+  scoreResponseQuality,
+  scoreLatency,
+  telemetrySettings,
+  langfuseTraceUrl,
+} from './langfuse'
+import { TraceLogSchema, QueryResponse } from './schemas'
+
+const DEFAULT_MODEL = 'anthropic/claude-3-5-haiku'
+const ALLOWED_MODELS = new Set([
+  'anthropic/claude-3-5-haiku',
+  'anthropic/claude-3-5-sonnet',
+  'anthropic/claude-3-opus',
+])
+const MAX_STEPS = 5
+
+function resolveModel(modelId?: string): string {
+  if (modelId && ALLOWED_MODELS.has(modelId)) return modelId
+  return DEFAULT_MODEL
+}
 
 const openrouter = createOpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   apiKey: process.env.OPENROUTER_API_KEY!,
 })
 
-// Schema for what the LLM returns — includes natural language response + per-coin analyses
-const QueryOutputSchema = z.object({
-  aiResponse: z.string().describe('Direct answer to the trader\'s question in 2-4 sentences. Be specific about coins and numbers.'),
-  analyses: z.array(z.object({
-    coin: z.string(),
-    sentiment: z.enum(['bullish', 'bearish', 'neutral']),
-    confidence: z.number().min(0).max(1),
-    summary: z.string().describe('One sentence about this coin\'s funding situation.'),
-    recommendation: z.enum(['long', 'short', 'wait']),
-    riskLevel: z.enum(['low', 'medium', 'high']),
-  })).min(1).max(4).describe('Focus on the 1-4 coins most relevant to the trader\'s query.'),
-})
+const SYSTEM_PROMPT = `You are a DeFi perpetuals trading assistant on Hyperliquid. Use your tools to fetch live data before answering. For specific coin questions, call getFundingRate. For comparisons, call comparePair. For market overview, call getTopFundingRates. For trend analysis, call getFundingHistory. Always fetch data before answering — don't guess rates. Positive funding means longs pay shorts (bearish for new longs). Negative funding means shorts pay longs (bullish for new longs).`
 
-export async function runFundingAnalysis(userQuery: string): Promise<QueryResponse> {
+/**
+ * Tool set shared by the streaming and sync entry points. Each tool wraps a
+ * live Hyperliquid fetch and returns plain data the model can reason over.
+ */
+const tools = {
+  getFundingRate: tool({
+    description:
+      'Get the current funding rate and premium for a single coin on Hyperliquid.',
+    parameters: z.object({
+      coin: z.string().describe('Coin symbol, e.g. BTC, ETH, HYPE, SOL.'),
+    }),
+    execute: async ({ coin }) => fetchFundingRate(coin),
+  }),
+  getTopFundingRates: tool({
+    description:
+      'Get the top funding rates across Hyperliquid (HYPE/BTC/ETH/SOL plus the highest-magnitude movers). Use for market overview.',
+    parameters: z.object({
+      limit: z.number().default(10).describe('How many coins to return.'),
+    }),
+    execute: async ({ limit }) => fetchTopFundingRates(limit),
+  }),
+  getFundingHistory: tool({
+    description:
+      'Get recent funding-rate history for one coin to analyze the trend over time.',
+    parameters: z.object({
+      coin: z.string().describe('Coin symbol to fetch history for.'),
+      periods: z
+        .number()
+        .default(20)
+        .describe('Number of most-recent funding periods to return.'),
+    }),
+    execute: async ({ coin, periods }) => fetchFundingHistory(coin, periods),
+  }),
+  comparePair: tool({
+    description:
+      'Compare two coins as a funding pair-trade: returns spread, annualized net carry, and which side is favored.',
+    parameters: z.object({
+      coinA: z.string().describe('First coin in the pair.'),
+      coinB: z.string().describe('Second coin in the pair.'),
+    }),
+    execute: async ({ coinA, coinB }) => fetchPairSpread(coinA, coinB),
+  }),
+  getPredictedFundings: tool({
+    description:
+      'Get predicted funding across venues (Hyperliquid vs Binance vs Bybit) to spot cross-venue divergence.',
+    parameters: z.object({}),
+    execute: async () => fetchPredictedFundings(),
+  }),
+} as const
+
+/**
+ * Streaming entry point: returns the live streamText result plus session/trace
+ * ids. The server pipes `result` to the HTTP response; Langfuse instrumentation
+ * (generation + scores) is wired into onFinish.
+ *
+ * The return type is inferred (not annotated) so `result`'s precise tool
+ * generics survive — annotating it widens tools to Record<string, CoreTool>
+ * and strips pipeDataStreamToResponse off the type.
+ */
+export async function runFundingAnalysis(
+  userQuery: string,
+  sessionId: string,
+  modelId?: string
+) {
+  const model = resolveModel(modelId)
   const start = Date.now()
-
-  // Step 1: Fetch live funding rates (top 15 coins + HYPE/BTC/ETH/SOL always included)
-  const rates = await fetchTopFundingRates(15)
-
-  // Step 2: Create Langfuse trace tagged with the user query
-  const { trace, flush } = createAnalysisTrace(userQuery)
-
-  const ratesTable = rates
-    .map((r) => {
-      const sign = r.fundingRate >= 0 ? '+' : ''
-      const annualized = (r.fundingRate * 3 * 365 * 100).toFixed(1)
-      return `${r.coin.padEnd(8)} ${sign}${(r.fundingRate * 100).toFixed(4)}%/8h  (${annualized}% ann)  premium: ${(r.premium * 100).toFixed(4)}%`
-    })
-    .join('\n')
-
-  const systemPrompt = `You are a DeFi perpetuals trading assistant on a Hyperliquid terminal.
-Positive funding = longs pay shorts = market is overextended long = bearish signal for new longs.
-Negative funding = shorts pay longs = market is overextended short = bullish signal for new longs.
-High absolute funding = high carry cost for the leveraged side.
-Be direct, precise, and actionable. Use actual numbers from the data.`
-
-  const userPrompt = `Trader query: "${userQuery}"
-
-Current Hyperliquid funding rates (live data):
-${ratesTable}
-
-Answer the trader's question directly. Focus on the 1-4 most relevant coins based on their query.
-If they ask about a specific coin not in the list, say it wasn't available in the current data set.`
-
-  // Step 3: Log to Langfuse
-  const span = trace.span({
-    name: 'query-analysis',
-    input: { userQuery, coinsAnalyzed: rates.length },
-  })
+  const { trace, flush } = createSessionTrace(sessionId, userQuery)
+  const traceId = trace.id
 
   const generation = trace.generation({
     name: 'trader-query-response',
-    model: 'anthropic/claude-3-haiku',
+    model,
     input: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userQuery },
     ],
   })
 
-  // Step 4: Vercel AI SDK → OpenRouter → LLM
-  const { object, usage } = await generateObject({
-    model: openrouter('anthropic/claude-3-haiku'),
-    schema: QueryOutputSchema,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
+  const result = await streamText({
+    model: openrouter(model),
+    system: SYSTEM_PROMPT,
+    prompt: userQuery,
+    tools,
+    maxSteps: MAX_STEPS,
+    experimental_telemetry: telemetrySettings('runFundingAnalysis'),
+    onFinish: async ({ text, usage }) => {
+      const latencyMs = Date.now() - start
+      generation.end({
+        output: text,
+        usage: {
+          promptTokens: usage?.promptTokens ?? 0,
+          completionTokens: usage?.completionTokens ?? 0,
+        },
+      })
+      trace.update({ output: text })
+      scoreResponseQuality(traceId)
+      scoreLatency(traceId, latencyMs)
+      await flush()
+    },
+  })
+
+  return { result, sessionId, traceId }
+}
+
+/** Inferred shape of the streaming pipeline result. */
+export type StreamingPipelineResult = Awaited<
+  ReturnType<typeof runFundingAnalysis>
+>
+
+/**
+ * Synchronous entry point (used by /api/analyze for history storage and
+ * backwards compatibility). Same tools + maxSteps, but awaits completion and
+ * returns a QueryResponse. analyses are left empty — the agent answers in prose.
+ */
+export async function runFundingAnalysisSync(
+  userQuery: string,
+  sessionId = 'sync',
+  modelId?: string
+): Promise<QueryResponse> {
+  const model = resolveModel(modelId)
+  const start = Date.now()
+  const { trace, flush } = createSessionTrace(sessionId, userQuery)
+  const traceId = trace.id
+
+  const generation = trace.generation({
+    name: 'trader-query-response',
+    model,
+    input: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userQuery },
     ],
+  })
+
+  const { text, usage } = await generateText({
+    model: openrouter(model),
+    system: SYSTEM_PROMPT,
+    prompt: userQuery,
+    tools,
+    maxSteps: MAX_STEPS,
+    experimental_telemetry: telemetrySettings('runFundingAnalysisSync'),
   })
 
   const latencyMs = Date.now() - start
+  const now = Date.now()
 
-  // Step 5: Close Langfuse spans
   generation.end({
-    output: object,
+    output: text,
     usage: {
       promptTokens: usage?.promptTokens ?? 0,
       completionTokens: usage?.completionTokens ?? 0,
     },
   })
-  span.end({ output: object })
+  trace.update({ output: text })
+  scoreResponseQuality(traceId)
+  scoreLatency(traceId, latencyMs)
   await flush()
 
-  // Step 6: Merge funding rate data into each coin analysis
-  const rateMap = new Map(rates.map((r) => [r.coin, r]))
-  const now = Date.now()
-
-  const analyses = object.analyses.map((a) => {
-    const rate = rateMap.get(a.coin.toUpperCase())
-    return AnalysisResultSchema.parse({
-      coin: a.coin.toUpperCase(),
-      fundingRate: rate?.fundingRate ?? 0,
-      sentiment: a.sentiment,
-      confidence: a.confidence,
-      summary: a.summary,
-      recommendation: a.recommendation,
-      riskLevel: a.riskLevel,
-      timestamp: rate?.timestamp ?? now,
-    })
-  })
-
   const traceLog = TraceLogSchema.parse({
-    traceId: trace.id,
-    model: 'anthropic/claude-3-haiku',
+    traceId,
+    model,
     inputTokens: usage?.promptTokens ?? 0,
     outputTokens: usage?.completionTokens ?? 0,
     latencyMs,
-    langfuseUrl: `${process.env.LANGFUSE_BASE_URL ?? 'https://cloud.langfuse.com'}/trace/${trace.id}`,
+    langfuseUrl: langfuseTraceUrl(traceId),
     timestamp: now,
   })
 
   return {
     userQuery,
-    aiResponse: object.aiResponse,
-    analyses,
+    aiResponse: text,
+    analyses: [],
     trace: traceLog,
   }
 }

@@ -1,88 +1,131 @@
-# HYPE Monitor — Funding Pipeline Tracer
+# HYPE Monitor — AI Agent for Perpetuals Funding
 
-Live demo of the [Pear Protocol](https://pearprotocol.io) stack: fetch HYPE perpetuals funding rates from Hyperliquid, analyze them with an AI pipeline, and trace every request through Langfuse.
+Production-grade demo of the [Pear Protocol](https://pearprotocol.io) AI stack. Multi-step agentic reasoning over Hyperliquid perpetuals funding rates: natural language queries → tool calling loop → OpenRouter Claude → streaming responses with Langfuse observability.
+
+## Architecture
 
 ```
-Hyperliquid API → Vercel AI SDK (generateObject) → OpenRouter → Claude 3 Haiku → Langfuse
+User Query (POST /api/chat)
+        ↓
+Vercel AI SDK streamText (sessionId tracked)
+        ↓
+Tool Calling Loop (max 5 steps)
+  ├─ getFundingRate(symbol)
+  ├─ getTopFundingRates()
+  ├─ getFundingHistory(symbol)
+  ├─ comparePair(symbol1, symbol2)
+  └─ getPredictedFundings(symbol)
+        ↓
+Hyperliquid Public API (metaAndAssetCtxs, fundingHistory, predictedFundings)
+        ↓
+OpenRouter → Claude 3 (via @ai-sdk/openai)
+        ↓
+Langfuse Trace/Span/Generation (session tracking + scoring)
+        ↓
+Streaming SSE response to frontend
 ```
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
+| Runtime | TypeScript 5, Node 18+, Express 4 |
+| AI orchestration | [Vercel AI SDK 3](https://sdk.vercel.ai) — `streamText`, `generateText`, tool calling |
+| Model gateway | [OpenRouter](https://openrouter.ai) → Claude 3.5 Sonnet via @ai-sdk/openai |
+| Schema validation | [Zod 3](https://zod.dev) — tool input/output schemas |
+| Observability | [Langfuse v3](https://langfuse.com) — trace/span/generation hierarchy, sessions, scoring |
 | Data source | [Hyperliquid](https://hyperliquid.xyz) public API (no key required) |
-| AI orchestration | [Vercel AI SDK](https://sdk.vercel.ai) — `generateObject()` with Zod schema |
-| Model gateway | [OpenRouter](https://openrouter.ai) → Claude 3 Haiku |
-| Schema validation | [Zod 3](https://zod.dev) — end-to-end typed pipeline |
-| Observability | [Langfuse](https://langfuse.com) — Trace → Span → Generation hierarchy |
-| Frontend | React 18 + Vite + [Motion](https://motion.dev) + TailwindCSS |
+| Frontend | React 18 + Vite + Framer Motion + TailwindCSS + IBM Plex fonts |
+| Caching | In-memory TTL cache for HL API responses |
+| Rate limiting | 10 req/min per IP |
 
-## Setup
+## Quickstart
 
-**1. Install dependencies**
+**1. Clone and install**
 ```bash
 git clone https://github.com/orhankhan01911/hype-monitor
 cd hype-monitor
-npm run install:all
+cd backend && npm install
+cd ../frontend && npm install
 ```
 
-**2. Configure environment**
+**2. Configure backend**
 ```bash
-cp backend/.env.example backend/.env
+cd backend && cp .env.example .env
 ```
 
-Edit `backend/.env`:
-```
-OPENROUTER_API_KEY=sk-or-v1-...    # https://openrouter.ai/keys
-LANGFUSE_PUBLIC_KEY=pk-lf-...      # https://cloud.langfuse.com
+Fill in `.env`:
+```bash
+OPENROUTER_API_KEY=sk-or-v1-...           # https://openrouter.ai/keys
+LANGFUSE_PUBLIC_KEY=pk-lf-...             # https://cloud.langfuse.com
 LANGFUSE_SECRET_KEY=sk-lf-...
-LANGFUSE_BASE_URL=https://cloud.langfuse.com   # or https://jp.cloud.langfuse.com for Japan region
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+PORT=3001
 ```
+
+> **Langfuse regions**: Use `https://jp.cloud.langfuse.com` for Japan, `https://cloud.langfuse.com` for US/EU.
 
 **3. Run**
 ```bash
-npm run dev
-# Backend:  http://localhost:3001
-# Frontend: http://localhost:5173
+# Terminal 1: backend
+cd backend && npm run dev      # http://localhost:3001
+
+# Terminal 2: frontend
+cd frontend && npm run dev     # http://localhost:5173
 ```
 
-## How it works
-
-1. Click **▶ ANALYZE** in the dashboard
-2. `GET /api/analyze` triggers `runFundingAnalysis()` in the Express backend
-3. `fetchHypeFundingRate()` POSTs to Hyperliquid's `/info` endpoint — no API key needed
-4. Vercel AI SDK's `generateObject()` sends the rate data to OpenRouter with a **Zod schema**
-5. OpenRouter routes to Claude 3 Haiku, which returns a validated JSON object
-6. The response is shaped into `AnalysisResult` (sentiment, confidence, recommendation, risk level)
-7. Every call creates a **Langfuse Trace → Span → Generation** with token counts + latency
-8. The React frontend animates results with Motion.dev micro-interactions
-
-## Langfuse trace structure
-
-```
-Trace: "funding-analysis"
-  metadata: { coin: "HYPE", source: "hyperliquid" }
-  └─ Span: "ai-analysis"
-       input: { fundingRate, premium }
-       └─ Generation: "funding-interpretation"
-            model: anthropic/claude-3-haiku
-            input: [{ role: "user", content: "..." }]
-            output: { sentiment, confidence, summary, recommendation, riskLevel }
-            usage: { promptTokens, completionTokens }
-```
-
-## API endpoints
+## API Reference
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/health` | Health check |
-| `GET` | `/api/analyze` | Run full pipeline, returns `APIResponse` |
-| `GET` | `/api/traces` | Last 20 cached results |
+| `POST` | `/api/chat` | **Streaming** agentic query. Body: `{ query, sessionId?, modelId? }`. Returns SSE with tool calls + LLM response. |
+| `POST` | `/api/analyze` | Non-streaming alias for `/api/chat`, returns `QueryResponse` JSON. |
+| `GET` | `/api/rates` | Top 20 funding rates across all symbols. Returns `FundingRate[]`. |
+| `GET` | `/api/history` | Last 20 queries + responses. Returns `QueryResponse[]`. |
+| `GET` | `/api/health` | Health check. Returns `{ status: 'ok', timestamp }`. |
 
-## Running tests
+## Tool Calling
 
-```bash
-cd backend && npm test
+The LLM has 5 tools available for Hyperliquid perpetuals analysis:
+
+- **`getFundingRate(symbol)`** — Current funding rate + premium for a symbol
+- **`getTopFundingRates()`** — Top 20 funding rates (net carry opportunities)
+- **`getFundingHistory(symbol, days?)`** — Historical funding trends
+- **`comparePair(symbol1, symbol2)`** — Spread analysis (net carry, favored direction)
+- **`getPredictedFundings(symbol)`** — Cross-venue comparison (HL vs Binance vs Bybit)
+
+Tool calls are streamed to the frontend, then the LLM synthesizes a response.
+
+## Langfuse Tracing
+
+Every chat request creates a **Trace** containing:
+- **Metadata**: `sessionId`, `userId` (optional), query intent
+- **Spans**: Nested function calls (HL API fetches, LLM generations)
+- **Generations**: Full LLM payloads (model, tokens, latency, tool calls)
+- **Scores**: Manual feedback scoring for response quality (optional)
+
+Example trace hierarchy:
+```
+Trace: session_abc123 / query="what's HYPE's funding?"
+  ├─ Span: tool_call_getFundingRate
+  │   └─ Generation: hl_api_fetch (tokens: 0, latency: 145ms)
+  └─ Span: llm_generation
+      └─ Generation: claude-3-sonnet (tokens: 1240 in + 234 out, latency: 320ms)
 ```
 
-The Hyperliquid test makes a real HTTP call (no key needed). The pipeline integration test is skipped unless `.env` keys are present.
+Sessions persist across queries, enabling conversation history and quality trends in Langfuse.
+
+## Development
+
+```bash
+# Backend tests
+cd backend && npm test
+
+# Linting
+npm run lint
+
+# Type check
+npm run typecheck
+```
+
+Hyperliquid tests make real HTTP calls (no key needed). Langfuse tracing integration is skipped unless `.env` keys are present.

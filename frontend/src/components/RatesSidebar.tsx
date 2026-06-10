@@ -10,8 +10,8 @@ interface Props {
 export function RatesSidebar({ rates, activeCoin, isRefreshing }: Props) {
   return (
     <div
-      className="flex flex-col h-full border-r"
-      style={{ borderColor: 'var(--border)', background: 'var(--surface)', width: '220px', flexShrink: 0 }}
+      className="flex flex-col flex-1 min-h-0"
+      style={{ background: 'var(--surface)' }}
     >
       {/* Sidebar header */}
       <div

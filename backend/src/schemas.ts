@@ -39,3 +39,34 @@ export const QueryResponseSchema = z.object({
   trace: TraceLogSchema,
 })
 export type QueryResponse = z.infer<typeof QueryResponseSchema>
+
+// --- Domain-rich schemas added in the tool-calling upgrade ---
+
+// A single historical funding observation for one coin.
+export const FundingHistoryEntrySchema = z.object({
+  time: z.number(),         // epoch ms
+  fundingRate: z.number(),  // per-8h funding as a decimal
+  coin: z.string(),
+})
+export type FundingHistoryEntry = z.infer<typeof FundingHistoryEntrySchema>
+
+// Pair-trade spread between two coins' funding rates.
+export const PairSpreadSchema = z.object({
+  coinA: z.string(),
+  coinB: z.string(),
+  rateA: z.number(),                 // coinA per-8h funding (decimal)
+  rateB: z.number(),                 // coinB per-8h funding (decimal)
+  spreadBps: z.number(),             // (rateA - rateB) in basis points
+  netCarryAnnualized: z.number(),    // (rateA - rateB) * 3 * 365 (decimal/yr)
+  favoredSide: z.enum(['long_a_short_b', 'long_b_short_a', 'neutral']),
+})
+export type PairSpread = z.infer<typeof PairSpreadSchema>
+
+// Predicted funding across venues for one coin.
+export const PredictedFundingSchema = z.object({
+  coin: z.string(),
+  hlFunding: z.number(),
+  binanceFunding: z.number().optional(),
+  bybitFunding: z.number().optional(),
+})
+export type PredictedFunding = z.infer<typeof PredictedFundingSchema>
