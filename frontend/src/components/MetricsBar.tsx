@@ -20,29 +20,29 @@ export function MetricsBar({ history }: Props) {
       style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
     >
       <Stat label="queries" value={String(history.length)} />
-      <Divider />
+      <Sep />
       <Stat label="avg latency" value={`${avgLatency}ms`} />
-      <Divider />
-      <Stat label="tokens used" value={totalTokens.toLocaleString()} />
-      <Divider />
+      <Sep />
+      <Stat label="tokens" value={totalTokens.toLocaleString()} />
+      <Sep />
       <Stat
-        label="bullish signals"
+        label="bullish"
         value={`${bullishCount}/${allAnalyses.length}`}
-        valueColor={bullishCount > bearishCount ? 'var(--cyan)' : '#ff4d6d'}
+        color={bullishCount >= bearishCount ? 'var(--green)' : 'var(--red)'}
       />
     </div>
   )
 }
 
-function Stat({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="flex items-center gap-2 px-4 py-2">
-      <span style={{ color: 'var(--label)' }}>{label}</span>
-      <span style={{ color: valueColor ?? 'var(--text)' }}>{value}</span>
+      <span style={{ color: 'var(--muted)' }}>{label}</span>
+      <span style={{ color: color ?? 'var(--text-2)' }}>{value}</span>
     </div>
   )
 }
 
-function Divider() {
-  return <span style={{ color: 'var(--border)' }}>|</span>
+function Sep() {
+  return <span className="py-2" style={{ color: 'var(--border)' }}>|</span>
 }

@@ -1,3 +1,10 @@
+export interface FundingRate {
+  coin: string
+  fundingRate: number
+  premium: number
+  timestamp: number
+}
+
 export interface AnalysisResult {
   coin: string
   fundingRate: number

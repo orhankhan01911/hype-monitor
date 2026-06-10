@@ -1,4 +1,4 @@
-import type { QueryResponse } from './types'
+import type { QueryResponse, FundingRate } from './types'
 
 const BASE = '/api'
 
@@ -21,8 +21,8 @@ export async function fetchHistory(): Promise<QueryResponse[]> {
   return res.json()
 }
 
-export async function checkHealth(): Promise<{ status: string; timestamp: number }> {
-  const res = await fetch(`${BASE}/health`)
-  if (!res.ok) throw new Error('Health check failed')
+export async function fetchRates(): Promise<FundingRate[]> {
+  const res = await fetch(`${BASE}/rates`)
+  if (!res.ok) throw new Error('Failed to fetch rates')
   return res.json()
 }

@@ -3,35 +3,51 @@
 @tailwind utilities;
 
 :root {
-  --cyan: #00D4FF;
-  --bg: #080c10;
-  --surface: #0b0f17;
-  --border: #1a2232;
-  --muted: #2e3d52;
-  --label: #4a6075;
-  --body: #8fa3b5;
-  --text: #c8d8e8;
+  /* Backgrounds — TradingView/Binance lineage */
+  --bg:        #0e1117;
+  --surface:   #151b23;
+  --surface-2: #1c2430;
+
+  /* Borders */
+  --border:    #253040;
+  --border-2:  #1a2230;
+
+  /* Text */
+  --text:      #dde4ee;
+  --text-2:    #8a9bb0;
+  --muted:     #4a5a70;
+
+  /* Semantic data colors — industry standard, what traders read all day */
+  --green:     #0ecb81;   /* bullish / positive funding */
+  --red:       #f6465d;   /* bearish / negative funding */
+  --yellow:    #f0b429;   /* neutral / warning / medium risk */
+
+  /* Interactive — blue, not cyan */
+  --blue:      #3b82f6;
+
+  /* Fonts */
+  --font-data: 'IBM Plex Mono', monospace;
+  --font-prose: 'IBM Plex Sans', -apple-system, sans-serif;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root { height: 100%; }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'JetBrains Mono', monospace;
-  margin: 0;
-  min-height: 100vh;
+  font-family: var(--font-data);
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: var(--border); }
 
-/* Selection */
-::selection { background: #00D4FF20; color: var(--text); }
+::selection { background: #3b82f620; }
 
-/* Remove default button styles */
-button { font-family: inherit; }
+a { color: inherit; text-decoration: none; }
+button { font-family: var(--font-data); cursor: pointer; }

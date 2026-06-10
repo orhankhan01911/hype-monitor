@@ -2,6 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { runFundingAnalysis } from './pipeline'
+import { fetchTopFundingRates } from './hyperliquid'
 import { QueryResponse } from './schemas'
 
 export const app = express()
@@ -30,6 +31,15 @@ app.post('/api/analyze', async (req, res) => {
     res.json(result)
   } catch (err) {
     console.error('[pipeline error]', err)
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+app.get('/api/rates', async (_req, res) => {
+  try {
+    const rates = await fetchTopFundingRates(20)
+    res.json(rates)
+  } catch (err) {
     res.status(500).json({ error: String(err) })
   }
 })

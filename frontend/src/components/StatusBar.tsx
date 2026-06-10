@@ -15,25 +15,24 @@ export function StatusBar({ isLoading, lastQueryAt, queryCount }: Props) {
 
   return (
     <div
-      className="flex items-center justify-between px-4 py-2 text-xs border-b"
+      className="flex items-center justify-between px-4 py-2 border-b text-xs"
       style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
     >
-      {/* Left: connection + pipeline status */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5">
           <motion.div
             className="w-1.5 h-1.5 rounded-full"
-            style={{ background: isLoading ? '#f59e0b' : '#00D4FF' }}
-            animate={isLoading ? { opacity: [1, 0.3, 1] } : { opacity: 1 }}
+            style={{ background: isLoading ? 'var(--yellow)' : 'var(--green)' }}
+            animate={isLoading ? { opacity: [1, 0.3, 1] } : {}}
             transition={{ duration: 0.6, repeat: isLoading ? Infinity : 0 }}
           />
-          <span style={{ color: isLoading ? '#f59e0b' : 'var(--label)' }}>
-            {isLoading ? 'processing' : 'ready'}
+          <span style={{ color: isLoading ? 'var(--yellow)' : 'var(--muted)' }}>
+            {isLoading ? 'processing' : 'connected'}
           </span>
         </div>
 
         <AnimatePresence mode="wait">
-          {isLoading ? (
+          {isLoading && (
             <motion.div
               key="steps"
               initial={{ opacity: 0 }}
@@ -45,8 +44,8 @@ export function StatusBar({ isLoading, lastQueryAt, queryCount }: Props) {
               {STEPS.map((s, i) => (
                 <span key={s} className="flex items-center gap-1">
                   <motion.span
-                    animate={{ color: ['#2e3d52', '#00D4FF', '#2e3d52'] }}
-                    transition={{ duration: 2, delay: i * 0.4, repeat: Infinity }}
+                    animate={{ color: ['var(--muted)', 'var(--text-2)', 'var(--muted)'] }}
+                    transition={{ duration: 1.8, delay: i * 0.35, repeat: Infinity }}
                   >
                     {s}
                   </motion.span>
@@ -54,23 +53,13 @@ export function StatusBar({ isLoading, lastQueryAt, queryCount }: Props) {
                 </span>
               ))}
             </motion.div>
-          ) : lastTime ? (
-            <motion.span
-              key="last"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              style={{ color: 'var(--label)' }}
-            >
-              last query {lastTime}
-            </motion.span>
-          ) : null}
+          )}
         </AnimatePresence>
       </div>
 
-      {/* Right: source + count */}
-      <div className="flex items-center gap-4" style={{ color: 'var(--label)' }}>
-        <span>Hyperliquid perps</span>
-        {queryCount > 0 && <span>{queryCount} {queryCount === 1 ? 'query' : 'queries'}</span>}
+      <div className="flex items-center gap-4" style={{ color: 'var(--muted)' }}>
+        {lastTime && <span>last query {lastTime}</span>}
+        {queryCount > 0 && <span>{queryCount} {queryCount === 1 ? 'query' : 'queries'} this session</span>}
       </div>
     </div>
   )

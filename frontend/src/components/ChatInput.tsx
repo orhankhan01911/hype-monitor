@@ -34,17 +34,16 @@ export function ChatInput({ onSubmit, isLoading }: Props) {
   return (
     <div className="border-t pt-3" style={{ borderColor: 'var(--border)' }}>
       <div
-        className="flex items-center gap-3 rounded border px-4 py-2.5 transition-colors"
+        className="flex items-center gap-3 px-4 py-2.5 rounded transition-colors"
         style={{
-          borderColor: value ? '#00D4FF40' : 'var(--border)',
+          border: `1px solid ${value ? 'var(--blue)' : 'var(--border)'}`,
           background: 'var(--surface)',
         }}
       >
-        {/* Cursor */}
         <motion.span
-          className="flex-shrink-0 text-sm"
-          style={{ color: isLoading ? '#f59e0b' : 'var(--cyan)' }}
-          animate={isLoading ? { opacity: [1, 0.2, 1] } : { opacity: 1 }}
+          className="text-sm flex-shrink-0 font-mono"
+          style={{ color: isLoading ? 'var(--yellow)' : 'var(--blue)' }}
+          animate={isLoading ? { opacity: [1, 0.2, 1] } : {}}
           transition={{ duration: 0.7, repeat: isLoading ? Infinity : 0 }}
         >
           {isLoading ? '…' : '>'}
@@ -58,7 +57,11 @@ export function ChatInput({ onSubmit, isLoading }: Props) {
           disabled={isLoading}
           placeholder={PLACEHOLDERS[phIdx]}
           className="flex-1 bg-transparent outline-none text-sm disabled:opacity-40"
-          style={{ color: 'var(--text)', caretColor: 'var(--cyan)' }}
+          style={{
+            color: 'var(--text)',
+            caretColor: 'var(--blue)',
+            fontFamily: 'var(--font-data)',
+          }}
           autoFocus
         />
 
@@ -67,8 +70,8 @@ export function ChatInput({ onSubmit, isLoading }: Props) {
           disabled={!value.trim() || isLoading}
           className="flex-shrink-0 text-xs px-3 py-1 rounded-sm transition-all disabled:opacity-30"
           style={{
-            background: value.trim() && !isLoading ? 'var(--cyan)' : 'transparent',
-            color: value.trim() && !isLoading ? '#080c10' : 'var(--label)',
+            background: value.trim() && !isLoading ? 'var(--blue)' : 'transparent',
+            color: value.trim() && !isLoading ? '#fff' : 'var(--muted)',
             border: '1px solid var(--border)',
           }}
         >
@@ -76,7 +79,7 @@ export function ChatInput({ onSubmit, isLoading }: Props) {
         </button>
       </div>
       <p className="text-xs mt-1.5 px-1" style={{ color: 'var(--muted)' }}>
-        Enter to send · asks about any Hyperliquid perpetual
+        Enter · any Hyperliquid perpetual
       </p>
     </div>
   )
