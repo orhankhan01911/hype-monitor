@@ -91,7 +91,7 @@ Provide: sentiment (bullish/bearish/neutral), confidence 0-1, a 1-sentence summa
     inputTokens: usage?.promptTokens ?? 0,
     outputTokens: usage?.completionTokens ?? 0,
     latencyMs,
-    langfuseUrl: `${process.env.LANGFUSE_HOST ?? 'https://cloud.langfuse.com'}/trace/${trace.id}`,
+    langfuseUrl: `${process.env.LANGFUSE_BASE_URL ?? 'https://cloud.langfuse.com'}/trace/${trace.id}`,
     timestamp: Date.now(),
   })
 

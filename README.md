@@ -36,7 +36,7 @@ Edit `backend/.env`:
 OPENROUTER_API_KEY=sk-or-v1-...    # https://openrouter.ai/keys
 LANGFUSE_PUBLIC_KEY=pk-lf-...      # https://cloud.langfuse.com
 LANGFUSE_SECRET_KEY=sk-lf-...
-LANGFUSE_HOST=https://cloud.langfuse.com
+LANGFUSE_BASE_URL=https://cloud.langfuse.com   # or https://jp.cloud.langfuse.com for Japan region
 ```
 
 **3. Run**
