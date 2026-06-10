@@ -11,7 +11,6 @@ export interface AnalysisResult {
 
 export interface TraceLog {
   traceId: string
-  coin: string
   model: string
   inputTokens: number
   outputTokens: number
@@ -20,7 +19,9 @@ export interface TraceLog {
   timestamp: number
 }
 
-export interface APIResponse {
-  analysis: AnalysisResult
+export interface QueryResponse {
+  userQuery: string
+  aiResponse: string
+  analyses: AnalysisResult[]
   trace: TraceLog
 }

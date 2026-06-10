@@ -22,7 +22,6 @@ export type AnalysisResult = z.infer<typeof AnalysisResultSchema>
 
 export const TraceLogSchema = z.object({
   traceId: z.string(),
-  coin: z.string(),
   model: z.string(),
   inputTokens: z.number(),
   outputTokens: z.number(),
@@ -32,8 +31,11 @@ export const TraceLogSchema = z.object({
 })
 export type TraceLog = z.infer<typeof TraceLogSchema>
 
-export const APIResponseSchema = z.object({
-  analysis: AnalysisResultSchema,
+// New: query-driven response that supports multi-coin + natural language answer
+export const QueryResponseSchema = z.object({
+  userQuery: z.string(),
+  aiResponse: z.string(),       // natural language answer to the trader's question
+  analyses: z.array(AnalysisResultSchema),  // 1-3 focused coins
   trace: TraceLogSchema,
 })
-export type APIResponse = z.infer<typeof APIResponseSchema>
+export type QueryResponse = z.infer<typeof QueryResponseSchema>

@@ -2,25 +2,31 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { runFundingAnalysis } from './pipeline'
-import { APIResponse } from './schemas'
+import { QueryResponse } from './schemas'
 
 export const app = express()
 
 app.use(cors())
 app.use(express.json())
 
-const traceCache: APIResponse[] = []
-const MAX_TRACES = 20
+const queryCache: QueryResponse[] = []
+const MAX_HISTORY = 20
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() })
 })
 
-app.get('/api/analyze', async (_req, res) => {
+app.post('/api/analyze', async (req, res) => {
+  const { query } = req.body as { query?: string }
+  if (!query || typeof query !== 'string' || query.trim().length === 0) {
+    res.status(400).json({ error: 'query is required' })
+    return
+  }
+
   try {
-    const result = await runFundingAnalysis()
-    traceCache.unshift(result)
-    if (traceCache.length > MAX_TRACES) traceCache.pop()
+    const result = await runFundingAnalysis(query.trim())
+    queryCache.unshift(result)
+    if (queryCache.length > MAX_HISTORY) queryCache.pop()
     res.json(result)
   } catch (err) {
     console.error('[pipeline error]', err)
@@ -28,8 +34,8 @@ app.get('/api/analyze', async (_req, res) => {
   }
 })
 
-app.get('/api/traces', (_req, res) => {
-  res.json(traceCache)
+app.get('/api/history', (_req, res) => {
+  res.json(queryCache)
 })
 
 if (require.main === module) {

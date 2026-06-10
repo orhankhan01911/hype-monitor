@@ -1,51 +1,52 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FundingCard } from './components/FundingCard'
 import { PipelineFlow } from './components/PipelineFlow'
-import { TracePanel } from './components/TracePanel'
 import { MetricsBar } from './components/MetricsBar'
-import { triggerAnalysis, fetchTraces } from './api'
-import type { APIResponse } from './types'
+import { ChatInput } from './components/ChatInput'
+import { ChatMessage } from './components/ChatMessage'
+import { sendQuery, fetchHistory } from './api'
+import type { QueryResponse } from './types'
 
 export default function App() {
-  const [latest, setLatest] = useState<APIResponse | null>(null)
-  const [traces, setTraces] = useState<APIResponse[]>([])
+  const [history, setHistory] = useState<QueryResponse[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [activeStep, setActiveStep] = useState(-1)
-  const [error, setError] = useState<string | null>(null)
   const [pipelineDone, setPipelineDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
+  // Animate pipeline steps while loading
   useEffect(() => {
     if (!isLoading) return
     setPipelineDone(false)
     setActiveStep(0)
     const id = setInterval(() => {
-      setActiveStep(s => {
-        if (s >= 4) { clearInterval(id); return s }
-        return s + 1
-      })
+      setActiveStep((s) => (s >= 4 ? s : s + 1))
     }, 700)
     return () => clearInterval(id)
   }, [isLoading])
 
-  const loadTraces = useCallback(async () => {
+  // Auto-scroll chat to bottom on new message
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [history])
+
+  const loadHistory = useCallback(async () => {
     try {
-      const t = await fetchTraces()
-      setTraces(t)
-    } catch { /* silent on initial load */ }
+      const h = await fetchHistory()
+      setHistory(h)
+    } catch { /* silent on initial */ }
   }, [])
 
-  useEffect(() => { void loadTraces() }, [loadTraces])
+  useEffect(() => { void loadHistory() }, [loadHistory])
 
-  const handleAnalyze = async () => {
-    if (isLoading) return
+  const handleQuery = async (query: string) => {
     setIsLoading(true)
     setError(null)
     setPipelineDone(false)
     try {
-      const result = await triggerAnalysis()
-      setLatest(result)
-      setTraces(prev => [result, ...prev].slice(0, 20))
+      const result = await sendQuery(query)
+      setHistory((prev) => [...prev, result])
       setPipelineDone(true)
     } catch (err) {
       setError(String(err))
@@ -56,135 +57,123 @@ export default function App() {
   }
 
   return (
-    <div className="relative z-10 min-h-screen p-6 max-w-5xl mx-auto">
+    <div className="relative z-10 min-h-screen flex flex-col p-6 max-w-5xl mx-auto">
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="flex items-start justify-between mb-8"
+        className="flex items-start justify-between mb-6 flex-shrink-0"
       >
         <div>
           <h1 className="text-white font-mono text-2xl font-bold tracking-tight leading-none">
             HYPE <span style={{ color: '#00D4FF' }}>MONITOR</span>
           </h1>
-          <p className="text-[#8B9EC7] text-xs font-mono mt-1.5 leading-relaxed">
-            Funding Pipeline Tracer<span className="text-[#1e2736] mx-1.5">·</span>
-            Hyperliquid<span className="text-[#00D4FF30] mx-1">→</span>
-            Vercel AI SDK<span className="text-[#00D4FF30] mx-1">→</span>
-            OpenRouter<span className="text-[#00D4FF30] mx-1">→</span>
+          <p className="text-[#8B9EC7] text-xs font-mono mt-1.5">
+            Hyperliquid<span className="text-[#00D4FF30] mx-1.5">→</span>
+            Vercel AI SDK<span className="text-[#00D4FF30] mx-1.5">→</span>
+            OpenRouter<span className="text-[#00D4FF30] mx-1.5">→</span>
             Langfuse
           </p>
         </div>
 
-        <motion.button
-          onClick={handleAnalyze}
-          disabled={isLoading}
-          whileHover={!isLoading ? { scale: 1.02 } : undefined}
-          whileTap={!isLoading ? { scale: 0.97 } : undefined}
-          className="relative px-6 py-2.5 rounded font-mono text-sm font-semibold overflow-hidden transition-colors disabled:cursor-not-allowed"
-          style={{
-            background: isLoading ? 'transparent' : '#00D4FF',
-            color: isLoading ? '#00D4FF' : '#080c10',
-            border: '1.5px solid #00D4FF',
-          }}
-        >
-          {isLoading ? (
-            <span className="flex items-center gap-2">
-              <motion.span
-                animate={{ opacity: [1, 0.2, 1] }}
-                transition={{ duration: 0.7, repeat: Infinity }}
-              >
-                ◈
-              </motion.span>
-              ANALYZING…
-            </span>
-          ) : (
-            '▶ ANALYZE'
-          )}
-        </motion.button>
+        {/* Live indicator */}
+        <div className="flex items-center gap-2 text-xs font-mono">
+          <motion.div
+            className="w-1.5 h-1.5 rounded-full"
+            style={{ background: '#00D4FF' }}
+            animate={{ opacity: [1, 0.3, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          />
+          <span className="text-[#8B9EC7]">LIVE · Hyperliquid</span>
+        </div>
       </motion.header>
 
-      {/* Error banner */}
+      {/* Pipeline + Metrics */}
+      <div className="space-y-3 mb-5 flex-shrink-0">
+        <PipelineFlow isActive={isLoading} activeStep={pipelineDone ? 5 : activeStep} />
+        <MetricsBar history={history} />
+      </div>
+
+      {/* Error */}
       <AnimatePresence>
         {error && (
           <motion.div
-            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-            animate={{ opacity: 1, height: 'auto', marginBottom: 16 }}
-            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-            className="p-3 rounded border border-[#FF4D6D] bg-[#FF4D6D08] text-[#FF4D6D] text-xs font-mono overflow-hidden"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-3 p-3 rounded border border-[#FF4D6D] bg-[#FF4D6D08] text-[#FF4D6D] text-xs font-mono flex-shrink-0"
           >
             ✕ {error}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Pipeline visualization */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.15, duration: 0.4 }}
-        className="mb-4"
-      >
-        <PipelineFlow
-          isActive={isLoading}
-          activeStep={pipelineDone ? 5 : activeStep}
-        />
-      </motion.div>
+      {/* Chat history */}
+      <div className="flex-1 overflow-y-auto mb-4 min-h-0 space-y-6">
+        {history.length === 0 && !isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="flex flex-col items-center justify-center h-full py-16 text-center"
+          >
+            <div className="text-[#1e2736] text-5xl mb-4 font-mono">◈</div>
+            <p className="text-[#8B9EC7] text-sm font-mono mb-2">Ask anything about Hyperliquid funding rates</p>
+            <div className="space-y-1 mt-4">
+              {[
+                '"show me HYPE funding rate"',
+                '"compare BTC vs ETH funding"',
+                '"which perp has the highest funding?"',
+              ].map((s) => (
+                <p key={s} className="text-[#2d3a4a] text-xs font-mono">{s}</p>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
-      {/* Metrics row */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.25, duration: 0.4 }}
-        className="mb-4"
-      >
-        <MetricsBar traces={traces} />
-      </motion.div>
+        {history.map((entry, i) => (
+          <ChatMessage
+            key={entry.trace.traceId}
+            entry={entry}
+            isLatest={i === history.length - 1}
+          />
+        ))}
 
-      {/* Main two-column grid */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Left: analysis result */}
-        <div>
-          <AnimatePresence mode="wait">
-            {latest ? (
-              <FundingCard
-                key={latest.trace.traceId}
-                analysis={latest.analysis}
-                isLoading={isLoading}
-              />
-            ) : (
-              <motion.div
-                key="placeholder"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="h-[220px] bg-[#0d1117] rounded-lg border border-[#1e2736] flex flex-col items-center justify-center gap-2"
-              >
-                <span className="text-[#1e2736] text-3xl">◈</span>
-                <p className="text-[#8B9EC7] text-xs font-mono">
-                  Click ▶ ANALYZE to fetch live HYPE funding data
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        {/* Loading state */}
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex gap-3 items-center"
+          >
+            <div
+              className="flex-shrink-0 w-6 h-6 rounded flex items-center justify-center text-xs font-mono"
+              style={{ background: '#00D4FF15', color: '#00D4FF', border: '1px solid #00D4FF30' }}
+            >
+              AI
+            </div>
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <motion.div
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: '#00D4FF' }}
+                  animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+                  transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
 
-        {/* Right: trace log */}
-        <TracePanel traces={traces} />
+        <div ref={chatEndRef} />
       </div>
 
-      {/* Footer */}
-      <motion.footer
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="mt-8 text-center"
-      >
-        <p className="text-[#1e2736] text-[10px] font-mono">
-          Data: Hyperliquid public API · Models: via OpenRouter · Observability: Langfuse
-        </p>
-      </motion.footer>
+      {/* Chat input — pinned to bottom */}
+      <div className="flex-shrink-0">
+        <ChatInput onSubmit={handleQuery} isLoading={isLoading} />
+      </div>
     </div>
   )
 }

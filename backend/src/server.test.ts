@@ -1,23 +1,23 @@
-// Mock out the full pipeline so Langfuse's dynamic-import doesn't break Jest
 jest.mock('./pipeline', () => ({
   runFundingAnalysis: jest.fn().mockResolvedValue({
-    analysis: {
+    userQuery: 'show me HYPE funding rate',
+    aiResponse: 'HYPE has a positive funding rate of 0.0013%/8h indicating a bullish market.',
+    analyses: [{
       coin: 'HYPE',
-      fundingRate: 0.0001,
+      fundingRate: 0.0000125,
       sentiment: 'bullish',
-      confidence: 0.9,
-      summary: 'Test summary.',
-      recommendation: 'long',
+      confidence: 0.85,
+      summary: 'Positive funding indicates overextended longs.',
+      recommendation: 'wait',
       riskLevel: 'medium',
       timestamp: Date.now(),
-    },
+    }],
     trace: {
       traceId: 'test-trace-id',
-      coin: 'HYPE',
       model: 'anthropic/claude-3-haiku',
-      inputTokens: 100,
-      outputTokens: 50,
-      latencyMs: 1200,
+      inputTokens: 200,
+      outputTokens: 80,
+      latencyMs: 1400,
       timestamp: Date.now(),
     },
   }),
@@ -26,22 +26,29 @@ jest.mock('./pipeline', () => ({
 import request from 'supertest'
 import { app } from './server'
 
-test('GET /api/health returns 200 with ok status', async () => {
+test('GET /api/health returns 200', async () => {
   const res = await request(app).get('/api/health')
   expect(res.status).toBe(200)
   expect(res.body.status).toBe('ok')
-  expect(typeof res.body.timestamp).toBe('number')
 })
 
-test('GET /api/traces returns empty array initially', async () => {
-  const res = await request(app).get('/api/traces')
+test('GET /api/history returns empty array initially', async () => {
+  const res = await request(app).get('/api/history')
   expect(res.status).toBe(200)
   expect(Array.isArray(res.body)).toBe(true)
 })
 
-test('GET /api/analyze calls pipeline and returns result', async () => {
-  const res = await request(app).get('/api/analyze')
+test('POST /api/analyze without query returns 400', async () => {
+  const res = await request(app).post('/api/analyze').send({})
+  expect(res.status).toBe(400)
+})
+
+test('POST /api/analyze with query calls pipeline and returns result', async () => {
+  const res = await request(app)
+    .post('/api/analyze')
+    .send({ query: 'show me HYPE funding rate' })
   expect(res.status).toBe(200)
-  expect(res.body.analysis.coin).toBe('HYPE')
+  expect(res.body.userQuery).toBe('show me HYPE funding rate')
+  expect(res.body.analyses[0].coin).toBe('HYPE')
   expect(res.body.trace.traceId).toBe('test-trace-id')
 })

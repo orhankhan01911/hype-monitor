@@ -4,6 +4,7 @@ import type { AnalysisResult } from '../types'
 interface Props {
   analysis: AnalysisResult
   isLoading: boolean
+  compact?: boolean
 }
 
 const SENTIMENT_COLOR = {
@@ -24,10 +25,45 @@ const RISK_COLOR = {
   high: '#FF4D6D',
 }
 
-export function FundingCard({ analysis, isLoading }: Props) {
+export function FundingCard({ analysis, isLoading, compact = false }: Props) {
   const color = SENTIMENT_COLOR[analysis.sentiment]
-  const annualizedRate = (analysis.fundingRate * 3 * 365 * 100).toFixed(2)
   const rateSign = analysis.fundingRate >= 0 ? '+' : ''
+  const annualizedRate = (analysis.fundingRate * 3 * 365 * 100).toFixed(2)
+
+  if (compact) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.25 }}
+        style={{ borderColor: `${color}50` }}
+        className="border rounded-lg p-3 bg-[#0d1117]"
+      >
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-white font-mono text-sm font-bold">{analysis.coin}</span>
+          <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color, background: `${color}15` }}>
+            {analysis.sentiment.toUpperCase()}
+          </span>
+        </div>
+        <p className="font-mono text-lg font-bold mb-1" style={{ color }}>
+          {rateSign}{(analysis.fundingRate * 100).toFixed(4)}%
+          <span className="text-[#8B9EC7] text-xs ml-1">/8h</span>
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 bg-[#161b22] rounded-full h-1 overflow-hidden">
+            <motion.div
+              className="h-full rounded-full"
+              style={{ background: color }}
+              initial={{ width: 0 }}
+              animate={{ width: `${analysis.confidence * 100}%` }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+            />
+          </div>
+          <span className="text-[#8B9EC7] text-[10px] font-mono">{REC_LABEL[analysis.recommendation]}</span>
+        </div>
+      </motion.div>
+    )
+  }
 
   return (
     <motion.div
@@ -48,7 +84,7 @@ export function FundingCard({ analysis, isLoading }: Props) {
 
       <div className="flex items-start justify-between mb-4">
         <div>
-          <p className="text-[#8B9EC7] text-xs font-mono tracking-widest uppercase">HYPE / USDC Perp</p>
+          <p className="text-[#8B9EC7] text-xs font-mono tracking-widest uppercase">{analysis.coin} / USDC Perp</p>
           <p className="text-white text-3xl font-bold font-mono mt-1">
             {rateSign}{(analysis.fundingRate * 100).toFixed(4)}%
             <span className="text-sm text-[#8B9EC7] ml-2">/ 8h</span>

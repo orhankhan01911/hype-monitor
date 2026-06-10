@@ -13,11 +13,12 @@ export function getLangfuse(): Langfuse {
   return _client
 }
 
-export function createAnalysisTrace(coin: string) {
+export function createAnalysisTrace(userQuery: string) {
   const lf = getLangfuse()
   const trace = lf.trace({
     name: 'funding-analysis',
-    metadata: { coin, source: 'hyperliquid' },
+    input: userQuery,
+    metadata: { source: 'hyperliquid', queryLength: userQuery.length },
   })
   return { trace, flush: () => lf.flushAsync() }
 }
